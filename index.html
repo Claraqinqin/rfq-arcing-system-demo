@@ -1,1 +1,350 @@
-TEMP_PLACEHOLDER
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RFQ谐振腔打火识别与定位系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <style>
+        :root{--primary:#1a5276;--accent:#2e6da4;--danger:#c0392b;--success:#27ae60;--warning:#e67e22;--bg:#f8f9fa;--bg-card:#ffffff;--bg-card2:#f1f3f5;--text:#212529;--text-muted:#6c757d;--border:#dee2e6}
+        body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;font-size:16px}
+        .navbar-custom{background:linear-gradient(135deg,var(--primary),#2c3e50);border-bottom:2px solid var(--accent);padding:12px 0}
+        .navbar-custom .navbar-brand{color:#fff;font-size:1.6rem;font-weight:600;letter-spacing:1px}
+        .status-badge{display:inline-block;padding:5px 14px;border-radius:12px;font-size:.95rem;font-weight:500}
+        .status-normal{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7}
+        .status-warning{background:#fff3e0;color:#e65100;border:1px solid #ffcc80}
+        .status-danger{background:#fce4ec;color:#c62828;border:1px solid #ef9a9a}
+        .status-success{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7}
+        .card-dark{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+        .card-dark .card-header{background:var(--bg-card2);border-bottom:1px solid var(--border);color:var(--text);font-weight:600;font-size:1.1rem;padding:12px 18px}
+        .metric-box{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+        .metric-value{font-size:2.4rem;font-weight:700;line-height:1.2}
+        .metric-label{color:var(--text-muted);font-size:1rem;margin-top:4px}
+        .gauge-container{position:relative;width:180px;height:180px;margin:0 auto}
+        .cavity-diagram{background:var(--bg-card2);border:1px solid var(--border);border-radius:8px;padding:20px;position:relative}
+        .cavity-body{width:100%;height:80px;background:linear-gradient(90deg,#bdc3c7,#95a5a6,#bdc3c7);border:2px solid #7f8c8d;border-radius:8px;position:relative;margin:30px 0}
+        .cavity-label{position:absolute;top:-22px;font-size:1rem;color:var(--text-muted)}
+        .apd-marker{position:absolute;top:50%;transform:translateY(-50%);width:34px;height:44px;background:var(--accent);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.9rem;font-weight:600;color:#fff}
+        .arc-marker{position:absolute;top:50%;transform:translate(-50%,-50%);width:16px;height:16px;background:var(--danger);border-radius:50%;box-shadow:0 0 12px rgba(192,57,43,.5);animation:pulse 1.5s infinite}
+        @keyframes pulse{0%,100%{box-shadow:0 0 8px rgba(192,57,43,.3)}50%{box-shadow:0 0 20px rgba(192,57,43,.7)}}
+        .event-table{font-size:1rem}.event-table th{color:var(--text-muted);font-weight:500;border-color:var(--border)}.event-table td{border-color:var(--border);vertical-align:middle}
+        .tab-content{padding-top:16px}
+        .nav-tabs .nav-link{color:var(--text-muted);border:none;padding:12px 24px;font-weight:500;font-size:1.05rem}
+        .nav-tabs .nav-link.active{color:var(--accent);background:transparent;border-bottom:2px solid var(--accent)}
+        .nav-tabs .nav-link:hover{color:var(--text)}
+        .info-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:1rem}
+        .info-row:last-child{border-bottom:none}.info-label{color:var(--text-muted)}
+        .channel-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+        .channel-item{background:var(--bg-card2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:.95rem}
+        .channel-value{font-size:1.3rem;font-weight:600}
+        .section-title{font-size:1.15rem;font-weight:600;color:var(--text);margin-bottom:14px;padding-left:12px;border-left:3px solid var(--accent)}
+        .model-param-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+        .table{--bs-table-bg:var(--bg-card);--bs-table-color:var(--text);--bs-table-border-color:var(--border)}
+        @media(max-width:768px){.channel-grid{grid-template-columns:repeat(2,1fr)}}
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-custom">
+        <div class="container-fluid px-4">
+            <span class="navbar-brand"><i class="bi bi-lightning-charge-fill me-2"></i>RFQ谐振腔打火识别与定位系统</span>
+            <div class="d-flex align-items-center gap-3">
+                <span class="status-badge status-normal"><i class="bi bi-circle-fill me-1" style="font-size:.5rem"></i>系统运行中</span>
+                <span id="clock" style="color:var(--text-muted);font-size:1rem"><i class="bi bi-clock me-1"></i></span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4 py-3">
+        <div class="row g-3 mb-3">
+            <div class="col-md-3"><div class="metric-box"><div id="metricProb" class="metric-value" style="color:var(--success)">0.042</div><div class="metric-label">当前异常概率 (MS-STAN)</div></div></div>
+            <div class="col-md-3"><div class="metric-box"><div class="metric-value" style="color:var(--accent)">0.52</div><div class="metric-label">识别阈值 τ*</div></div></div>
+            <div class="col-md-3"><div class="metric-box"><div class="metric-value" style="color:var(--warning)">7</div><div class="metric-label">近48h打火事件数</div></div></div>
+            <div class="col-md-3"><div class="metric-box"><div class="metric-value" style="color:var(--text)" id="uptimeVal">264h</div><div class="metric-label">连续运行时间</div></div></div>
+        </div>
+
+        <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-identify"><i class="bi bi-cpu me-1"></i>打火在线识别</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-locate"><i class="bi bi-geo-alt me-1"></i>打火位置定位</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-history"><i class="bi bi-clock-history me-1"></i>历史事件</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-model"><i class="bi bi-gear me-1"></i>模型参数</a></li>
+        </ul>
+
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="tab-identify">
+                <div class="row g-3">
+                    <div class="col-lg-8">
+                        <div class="card card-dark"><div class="card-header"><i class="bi bi-graph-up me-2"></i>异常概率实时趋势 (近120分钟)</div>
+                        <div class="card-body" style="padding:16px"><canvas id="probChart" height="100"></canvas></div></div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card card-dark mb-3"><div class="card-header"><i class="bi bi-speedometer2 me-2"></i>当前状态判定</div>
+                        <div class="card-body text-center" style="padding:20px">
+                            <div class="gauge-container"><canvas id="gaugeChart"></canvas></div>
+                            <div class="mt-2"><span id="statusBadge" class="status-badge status-normal">✓ 正常运行</span></div>
+                        </div></div>
+                        <div class="card card-dark"><div class="card-header"><i class="bi bi-info-circle me-2"></i>滑动窗口信息</div>
+                        <div class="card-body" style="padding:12px 16px">
+                            <div class="info-row"><span class="info-label">窗口长度</span><span>T = 60 min</span></div>
+                            <div class="info-row"><span class="info-label">特征维度</span><span>d = 80+高级特征</span></div>
+                            <div class="info-row"><span class="info-label">采样间隔</span><span>1 min</span></div>
+                            <div class="info-row"><span class="info-label">归一化</span><span>RobustScaler</span></div>
+                            <div class="info-row"><span class="info-label">最优阈值</span><span>τ* = 0.52</span></div>
+                        </div></div>
+                    </div>
+                    <div class="col-12">
+                        <div class="card card-dark"><div class="card-header"><i class="bi bi-thermometer-half me-2"></i>多源传感器通道实时状态 (16通道)</div>
+                        <div class="card-body" style="padding:16px">
+                            <div class="section-title">温度通道 (10通道)</div>
+                            <div id="tempChannels" class="channel-grid mb-3"></div>
+                            <div class="section-title">真空通道 (4通道)</div>
+                            <div id="vacChannels" class="channel-grid mb-3"></div>
+                            <div class="section-title">束流 & 功率通道 (2通道)</div>
+                            <div id="bpChannels" class="channel-grid"></div>
+                        </div></div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card card-dark"><div class="card-header"><i class="bi bi-thermometer me-2"></i>温度趋势 (RTD_1 ~ RTD_4)</div>
+                        <div class="card-body" style="padding:16px"><canvas id="tempChart" height="80"></canvas></div></div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card card-dark"><div class="card-header"><i class="bi bi-speedometer me-2"></i>真空 & 功率趋势</div>
+                        <div class="card-body" style="padding:16px"><canvas id="vacPowerChart" height="80"></canvas></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="tab-locate">
+                <div class="row g-3">
+                    <div class="col-lg-8">
+                        <div class="card card-dark"><div class="card-header"><i class="bi bi-rulers me-2"></i>谐振腔打火位置可视化</div>
+                        <div class="card-body" style="padding:20px">
+                            <div class="cavity-diagram">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span style="color:var(--accent);font-weight:600">APD-A</span>
+                                    <span style="color:var(--text-muted);font-size:.85rem">腔体等效长度 L = 1600 mm</span>
+                                    <span style="color:var(--accent);font-weight:600">APD-B</span>
+                                </div>
+                                <div class="cavity-body">
+                                    <div class="apd-marker" style="left:-15px">A</div>
+                                    <div class="apd-marker" style="right:-15px">B</div>
+                                    <div class="arc-marker" style="left:36.5%"></div>
+                                    <div class="cavity-label" style="left:36.5%;transform:translateX(-50%)">x̂ = 584 mm</div>
+                                    <div style="position:absolute;bottom:-20px;left:0;right:0;display:flex;justify-content:space-between;font-size:.7rem;color:var(--text-muted)">
+                                        <span>0</span><span>200</span><span>400</span><span>600</span><span>800</span><span>1000</span><span>1200</span><span>1400</span><span>1600</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row g-3 mt-3">
+                                <div class="col-4"><div class="metric-box"><div class="metric-value" style="color:var(--danger);font-size:1.5rem">584 mm</div><div class="metric-label">定位估计值 x̂</div></div></div>
+                                <div class="col-4"><div class="metric-box"><div class="metric-value" style="color:var(--accent);font-size:1.5rem">2.16 ns</div><div class="metric-label">有效时差 Δt_eff</div></div></div>
+                                <div class="col-4"><div class="metric-box"><div class="metric-value" style="color:var(--warning);font-size:1.5rem">-14.53 ns</div><div class="metric-label">系统偏置 Δτ_bias</div></div></div>
+                            </div>
+                        </div></div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card card-dark mb-3"><div class="card-header"><i class="bi bi-sliders me-2"></i>TDOA提取参数</div>
+                        <div class="card-body" style="padding:12px 16px">
+                            <div class="info-row"><span class="info-label">采样率</span><span>2.5 GS/s</span></div>
+                            <div class="info-row"><span class="info-label">采样间隔</span><span>0.4 ns</span></div>
+                            <div class="info-row"><span class="info-label">CF比例</span><span>0.30</span></div>
+                            <div class="info-row"><span class="info-label">SG窗口</span><span>25点 3阶</span></div>
+                            <div class="info-row"><span class="info-label">拟合区间</span><span>10%-50%</span></div>
+                            <div class="info-row"><span class="info-label">低通截止</span><span>300 MHz</span></div>
+                            <div class="info-row"><span class="info-label">传播速度</span><span>2.0×10⁸ m/s</span></div>
+                        </div></div>
+                        <div class="card card-dark"><div class="card-header"><i class="bi bi-bar-chart me-2"></i>定位精度统计</div>
+                        <div class="card-body" style="padding:12px 16px">
+                            <div class="info-row"><span class="info-label">标准平台 MAE</span><span style="color:var(--success)">4.32 mm</span></div>
+                            <div class="info-row"><span class="info-label">高压平台 MAE</span><span style="color:var(--success)">7.93 mm</span></div>
+                            <div class="info-row"><span class="info-label">较次优方法↓</span><span style="color:var(--accent)">99.6%</span></div>
+                            <div class="info-row"><span class="info-label">总事件数</span><span>25 次</span></div>
+                        </div></div>
+                    </div>
+                    <div class="col-12">
+                        <div class="card card-dark"><div class="card-header"><i class="bi bi-activity me-2"></i>双通道APD波形 (最近一次打火事件)</div>
+                        <div class="card-body" style="padding:16px"><canvas id="waveformChart" height="70"></canvas></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="tab-history">
+                <div class="row g-3">
+                    <div class="col-lg-8">
+                        <div class="card card-dark"><div class="card-header"><i class="bi bi-list-ul me-2"></i>打火事件记录 (近48小时)</div>
+                        <div class="card-body" style="padding:0">
+                            <table class="table table-striped event-table mb-0">
+                                <thead><tr><th>时间</th><th>异常概率</th><th>定位估计 (mm)</th><th>状态</th></tr></thead>
+                                <tbody id="eventTableBody"></tbody>
+                            </table>
+                        </div></div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card card-dark mb-3"><div class="card-header"><i class="bi bi-pie-chart me-2"></i>事件统计</div>
+                        <div class="card-body" style="padding:16px"><canvas id="eventPieChart" height="160"></canvas></div></div>
+                        <div class="card card-dark"><div class="card-header"><i class="bi bi-bar-chart me-2"></i>位置分布</div>
+                        <div class="card-body" style="padding:16px"><canvas id="posHistChart" height="130"></canvas></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="tab-model">
+                <div class="row g-3">
+                    <div class="col-lg-6">
+                        <div class="card card-dark"><div class="card-header"><i class="bi bi-diagram-3 me-2"></i>MS-STAN 网络结构</div>
+                        <div class="card-body" style="padding:16px">
+                            <div class="section-title">多分支卷积编码层 (×5)</div>
+                            <div class="model-param-grid mb-3">
+                                <div class="channel-item"><div class="info-label">类型</div><div>Conv1D</div></div>
+                                <div class="channel-item"><div class="info-label">卷积核数</div><div>32</div></div>
+                                <div class="channel-item"><div class="info-label">核宽度</div><div>K = 3</div></div>
+                                <div class="channel-item"><div class="info-label">激活函数</div><div>ReLU</div></div>
+                                <div class="channel-item"><div class="info-label">池化</div><div>MaxPool(2)</div></div>
+                                <div class="channel-item"><div class="info-label">Dropout</div><div>p = 0.25</div></div>
+                            </div>
+                            <div class="section-title">BiLSTM 时序建模层</div>
+                            <div class="model-param-grid mb-3">
+                                <div class="channel-item"><div class="info-label">隐藏单元</div><div>64 (×2方向)</div></div>
+                                <div class="channel-item"><div class="info-label">输出维度</div><div>128</div></div>
+                            </div>
+                            <div class="section-title">加性注意力层</div>
+                            <div class="model-param-grid mb-3">
+                                <div class="channel-item"><div class="info-label">输入步数</div><div>T' = 30</div></div>
+                                <div class="channel-item"><div class="info-label">权重维度</div><div>w ∈ ℝ¹²⁸</div></div>
+                            </div>
+                            <div class="section-title">全连接输出层</div>
+                            <div class="model-param-grid">
+                                <div class="channel-item"><div class="info-label">Dense-1</div><div>64, ReLU</div></div>
+                                <div class="channel-item"><div class="info-label">Dense-2</div><div>1, Sigmoid</div></div>
+                                <div class="channel-item"><div class="info-label">Dropout</div><div>p = 0.35</div></div>
+                                <div class="channel-item"><div class="info-label">输出精度</div><div>float32</div></div>
+                            </div>
+                        </div></div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card card-dark mb-3"><div class="card-header"><i class="bi bi-wrench me-2"></i>训练配置</div>
+                        <div class="card-body" style="padding:12px 16px">
+                            <div class="info-row"><span class="info-label">优化器</span><span>Adam (lr=1e-3)</span></div>
+                            <div class="info-row"><span class="info-label">损失函数</span><span>Binary Cross-Entropy</span></div>
+                            <div class="info-row"><span class="info-label">混合精度</span><span>mixed_float16</span></div>
+                            <div class="info-row"><span class="info-label">梯度裁剪</span><span>clipnorm = 1.0</span></div>
+                            <div class="info-row"><span class="info-label">批大小</span><span>256</span></div>
+                            <div class="info-row"><span class="info-label">EarlyStopping</span><span>patience = 8</span></div>
+                            <div class="info-row"><span class="info-label">ReduceLR</span><span>patience=3, factor=0.5</span></div>
+                            <div class="info-row"><span class="info-label">GPU</span><span>NVIDIA RTX 3090</span></div>
+                            <div class="info-row"><span class="info-label">框架</span><span>TensorFlow 2.x + Keras</span></div>
+                        </div></div>
+                        <div class="card card-dark mb-3"><div class="card-header"><i class="bi bi-trophy me-2"></i>测试集性能指标</div>
+                        <div class="card-body" style="padding:16px">
+                            <div class="row g-2">
+                                <div class="col-6"><div class="metric-box"><div class="metric-value" style="font-size:1.4rem;color:var(--accent)">0.77</div><div class="metric-label">F1-score</div></div></div>
+                                <div class="col-6"><div class="metric-box"><div class="metric-value" style="font-size:1.4rem;color:var(--success)">0.81</div><div class="metric-label">Recall</div></div></div>
+                                <div class="col-6"><div class="metric-box"><div class="metric-value" style="font-size:1.4rem;color:var(--warning)">0.74</div><div class="metric-label">Precision</div></div></div>
+                                <div class="col-6"><div class="metric-box"><div class="metric-value" style="font-size:1.4rem;color:#9b59b6">0.8419</div><div class="metric-label">PR-AUC</div></div></div>
+                            </div>
+                        </div></div>
+                        <div class="card card-dark"><div class="card-header"><i class="bi bi-layers me-2"></i>物理分支信息</div>
+                        <div class="card-body" style="padding:12px 16px">
+                            <div class="info-row"><span class="info-label">分支1 — 温度</span><span>RTD×8 + CW×2</span></div>
+                            <div class="info-row"><span class="info-label">分支2 — 真空</span><span>CCG×4</span></div>
+                            <div class="info-row"><span class="info-label">分支3 — 束流</span><span>LEBT×1</span></div>
+                            <div class="info-row"><span class="info-label">分支4 — 功率</span><span>RF power×1</span></div>
+                            <div class="info-row"><span class="info-label">分支5 — 扩展</span><span>差分+交互+时间编码</span></div>
+                        </div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="text-center py-3" style="color:var(--text-muted);font-size:1rem;border-top:1px solid var(--border)">
+        基于时空感知与飞行时间的谐振腔打火识别与定位研究 · 演示系统
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    function gauss(mean,std){let u=0,v=0;while(u===0)u=Math.random();while(v===0)v=Math.random();return mean+std*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+    function pad(n){return n<10?'0'+n:''+n}
+    function updateClock(){const d=new Date();document.getElementById('clock').innerHTML='<i class="bi bi-clock me-1"></i>'+d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds())}
+    setInterval(updateClock,1000);updateClock();
+
+    const N=120;const now=new Date();
+    const timestamps=[];for(let i=0;i<N;i++){const t=new Date(now.getTime()-(N-i)*60000);timestamps.push(pad(t.getHours())+':'+pad(t.getMinutes()))}
+
+    const probs=[];
+    for(let i=0;i<N;i++){let p;if(i>82&&i<88)p=.15+(i-82)*.08+gauss(0,.03);else if(i>=88&&i<=92)p=.75+gauss(0,.05);else if(i>92&&i<98)p=.6-(i-92)*.08+gauss(0,.03);else p=.05+gauss(0,.02);probs.push(Math.max(0,Math.min(1,parseFloat(p.toFixed(3)))))}
+    const curProb=probs[N-1];
+    document.getElementById('metricProb').textContent=curProb.toFixed(3);
+    document.getElementById('metricProb').style.color=curProb>0.52?'var(--danger)':'var(--success)';
+    document.getElementById('statusBadge').className='status-badge '+(curProb>0.52?'status-danger':'status-normal');
+    document.getElementById('statusBadge').textContent=curProb>0.52?'\u26A0 \u5F02\u5E38\u72B6\u6001':'\u2713 \u6B63\u5E38\u8FD0\u884C';
+
+    const tempNames=['RTD_1','RTD_2','RTD_3','RTD_4','RTD_5','RTD_6','RTD_7','RTD_8','CW_inlet','CW_vane'];
+    const tempBases=[28.5,27.8,29.1,28.2,27.5,28.8,29.3,28.0,22.0,23.5];
+    const tempData={};const tempSeries=[];
+    for(let t=0;t<tempNames.length;t++){const arr=[];const base=tempBases[t];for(let i=0;i<N;i++){arr.push(parseFloat((base+gauss(0,.3)+(i>80&&i<95?.8:0)).toFixed(2)))}tempData[tempNames[t]]=arr;if(t<4)tempSeries.push(arr)}
+
+    const vacNames=['CCG_1','CCG_2','CCG_3','CCG_4'];const vacData={};
+    for(let v=0;v<4;v++){const arr=[];for(let i=0;i<N;i++){arr.push(parseFloat((2e-6*(1+gauss(0,.1))*(i>85&&i<92?5:1)).toExponential(2)))}vacData[vacNames[v]]=arr}
+
+    const beamArr=[];const powerArr=[];
+    for(let i=0;i<N;i++){beamArr.push(parseFloat((15+gauss(0,.5)-(i>88&&i<91?12:0)).toFixed(2)));powerArr.push(parseFloat((380+gauss(0,5)-(i>88&&i<90?350:0)).toFixed(1)))}
+
+    let tempHTML='';
+    for(const name of tempNames){const v=tempData[name][N-1];tempHTML+='<div class="channel-item"><div style="color:var(--text-muted)">'+name+'</div><div class="channel-value" style="color:'+(v>30?'#c0392b':'#27ae60')+'">'+v+' \u00B0C</div></div>'}
+    document.getElementById('tempChannels').innerHTML=tempHTML;
+
+    let vacHTML='';
+    for(const name of vacNames){const v=vacData[name][N-1];vacHTML+='<div class="channel-item"><div style="color:var(--text-muted)">'+name+'</div><div class="channel-value" style="color:'+(v>5e-6?'#e67e22':'#27ae60')+'">'+parseFloat(v).toExponential(2)+' Pa</div></div>'}
+    document.getElementById('vacChannels').innerHTML=vacHTML;
+
+    document.getElementById('bpChannels').innerHTML='<div class="channel-item"><div style="color:var(--text-muted)">LEBT \u675F\u6D41</div><div class="channel-value" style="color:#2e6da4">'+beamArr[N-1]+' mA</div></div><div class="channel-item"><div style="color:var(--text-muted)">\u8154\u4F53\u529F\u7387</div><div class="channel-value" style="color:#2e6da4">'+powerArr[N-1]+' kW</div></div>';
+
+    const evtPositions=[120,580,950,340,1100,780,210];const evtData=[];
+    for(let i=0;i<7;i++){const h=Math.floor(Math.random()*47)+1;const m=Math.floor(Math.random()*60);const d=new Date(now.getTime()-h*3600000-m*60000);const prob=(.65+Math.random()*.3).toFixed(3);evtData.push({time:pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes()),prob:prob,pos:evtPositions[i],status:i<6?'\u5DF2\u5B9A\u4F4D':'\u5F85\u786E\u8BA4'})}
+    evtData.sort(function(a,b){return b.time.localeCompare(a.time)});
+    let evtHTML='';
+    for(var ei=0;ei<evtData.length;ei++){var e=evtData[ei];var barW=Math.round(e.prob*100);var barC=e.prob>0.7?'#c0392b':'#e67e22';var stC=e.status==='\u5DF2\u5B9A\u4F4D'?'success':'warning';evtHTML+='<tr><td>'+e.time+'</td><td><div class="d-flex align-items-center gap-2"><div style="width:60px;height:6px;background:var(--border);border-radius:3px"><div style="width:'+barW+'%;height:100%;background:'+barC+';border-radius:3px"></div></div>'+e.prob+'</div></td><td>'+e.pos+' mm</td><td><span class="status-badge status-'+stC+'">'+e.status+'</span></td></tr>'}
+    document.getElementById('eventTableBody').innerHTML=evtHTML;
+
+    const wfT=[],wfA=[],wfB=[];
+    for(let i=0;i<500;i+=3){const ti=i*.4;wfT.push(parseFloat(ti.toFixed(1)));let va,vb;
+    if(ti<60){va=gauss(0,.005)}else if(ti<65){va=.8*(1-Math.exp(-(ti-60)/1.5))}else if(ti<80){va=.8*Math.exp(-(ti-65)/8)+.1*Math.sin((ti-65)*2)}else{va=.05*Math.exp(-(ti-80)/15)+gauss(0,.008)}
+    if(ti<65){vb=gauss(0,.005)}else if(ti<70){vb=.65*(1-Math.exp(-(ti-65)/1.8))}else if(ti<85){vb=.65*Math.exp(-(ti-70)/9)+.08*Math.sin((ti-70)*1.8)}else{vb=.04*Math.exp(-(ti-85)/15)+gauss(0,.008)}
+    wfA.push(parseFloat((va+gauss(0,.01)).toFixed(4)));wfB.push(parseFloat((vb+gauss(0,.01)).toFixed(4)))}
+
+    Chart.defaults.color='#495057';Chart.defaults.borderColor='#dee2e6';
+
+    new Chart(document.getElementById('probChart'),{type:'line',data:{labels:timestamps,datasets:[{label:'\u5F02\u5E38\u6982\u7387 p\u0302_t',data:probs,borderColor:'#2e6da4',backgroundColor:'rgba(46,109,164,.08)',fill:true,tension:.3,pointRadius:0,borderWidth:2},{label:'\u9608\u503C \u03C4*=0.52',data:Array(N).fill(.52),borderColor:'#c0392b',borderDash:[6,3],pointRadius:0,borderWidth:1.5,fill:false}]},options:{responsive:true,plugins:{legend:{position:'top',labels:{boxWidth:12}}},scales:{y:{min:0,max:1,grid:{color:'#e9ecef'}},x:{ticks:{maxTicksLimit:12},grid:{display:false}}}}});
+
+    const tColors=['#c0392b','#d35400','#7d8c00','#27ae60'];const tDS=[];
+    for(let i=0;i<4;i++){tDS.push({label:'RTD_'+(i+1),data:tempSeries[i],borderColor:tColors[i],pointRadius:0,borderWidth:1.5,tension:.3})}
+    new Chart(document.getElementById('tempChart'),{type:'line',data:{labels:timestamps,datasets:tDS},options:{responsive:true,plugins:{legend:{position:'top',labels:{boxWidth:10,font:{size:11}}}},scales:{y:{grid:{color:'#e9ecef'},title:{display:true,text:'\u00B0C'}},x:{ticks:{maxTicksLimit:12},grid:{display:false}}}}});
+
+    new Chart(document.getElementById('vacPowerChart'),{type:'line',data:{labels:timestamps,datasets:[{label:'RF\u529F\u7387 (kW)',data:powerArr,borderColor:'#7b2d8e',pointRadius:0,borderWidth:1.5,tension:.3}]},options:{responsive:true,plugins:{legend:{position:'top',labels:{boxWidth:10}}},scales:{y:{grid:{color:'#e9ecef'},title:{display:true,text:'kW'}},x:{ticks:{maxTicksLimit:12},grid:{display:false}}}}});
+
+    new Chart(document.getElementById('gaugeChart'),{type:'doughnut',data:{datasets:[{data:[curProb,1-curProb],backgroundColor:[curProb>.52?'#c0392b':'#27ae60','#e9ecef'],borderWidth:0}]},options:{circumference:270,rotation:225,cutout:'75%',plugins:{legend:{display:false},tooltip:{enabled:false}}},plugins:[{afterDraw:function(c){var ctx=c.ctx;var w=c.width;var h=c.height;ctx.save();ctx.font='bold 28px sans-serif';ctx.fillStyle=curProb>.52?'#c0392b':'#27ae60';ctx.textAlign='center';ctx.fillText(curProb.toFixed(3),w/2,h/2+15);ctx.restore()}}]});
+
+    new Chart(document.getElementById('waveformChart'),{type:'line',data:{labels:wfT,datasets:[{label:'Channel A (APD-A)',data:wfA,borderColor:'#27ae60',pointRadius:0,borderWidth:1.2,tension:.1},{label:'Channel B (APD-B)',data:wfB,borderColor:'#c0392b',pointRadius:0,borderWidth:1.2,tension:.1}]},options:{responsive:true,plugins:{legend:{position:'top',labels:{boxWidth:10}}},scales:{y:{grid:{color:'#e9ecef'},title:{display:true,text:'Voltage (V)'}},x:{ticks:{maxTicksLimit:10},grid:{display:false},title:{display:true,text:'Time (ns)'}}}}});
+
+    new Chart(document.getElementById('eventPieChart'),{type:'doughnut',data:{labels:['\u5DF2\u5B9A\u4F4D','\u5F85\u786E\u8BA4'],datasets:[{data:[6,1],backgroundColor:['#27ae60','#e67e22'],borderWidth:0}]},options:{cutout:'60%',plugins:{legend:{position:'bottom'}}}});
+
+    new Chart(document.getElementById('posHistChart'),{type:'bar',data:{labels:['0-300','300-600','600-900','900-1200','1200-1600'],datasets:[{label:'\u4E8B\u4EF6\u6570',data:[2,1,2,1,1],backgroundColor:'rgba(46,109,164,.5)',borderColor:'#2e6da4',borderWidth:1}]},options:{plugins:{legend:{display:false}},scales:{y:{grid:{color:'#e9ecef'},ticks:{stepSize:1}},x:{grid:{display:false},title:{display:true,text:'\u4F4D\u7F6E (mm)'}}}}});
+
+    (function(){
+      var fab=document.createElement('div');
+      fab.innerHTML='<button id="screenshotBtn" style="position:fixed;bottom:30px;right:30px;z-index:9999;width:56px;height:56px;border-radius:50%;border:none;background:linear-gradient(135deg,#1a5276,#2e6da4);color:#fff;font-size:22px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s" title="\u622A\u56FE\u4FDD\u5B58\u4E3A TIF"><i class="bi bi-camera-fill"></i></button><div id="screenshotToast" style="position:fixed;bottom:100px;right:30px;z-index:9999;background:#212529;color:#fff;padding:10px 20px;border-radius:8px;font-size:.85rem;display:none;box-shadow:0 4px 12px rgba(0,0,0,.3)"></div>';
+      document.body.appendChild(fab);
+      var btn=document.getElementById('screenshotBtn');
+      var toast=document.getElementById('screenshotToast');
+      btn.onmouseenter=function(){btn.style.transform='scale(1.1)';btn.style.boxShadow='0 6px 20px rgba(0,0,0,.35)'};
+      btn.onmouseleave=function(){btn.style.transform='scale(1)';btn.style.boxShadow='0 4px 12px rgba(0,0,0,.25)'};
+      function showToast(msg,ms){toast.textContent=msg;toast.style.display='block';setTimeout(function(){toast.style.display='none'},ms||3000)}
+      function encodeTIFF(canvas){var w=canvas.width,h=canvas.height,ctx=canvas.getContext('2d'),imgData=ctx.getImageData(0,0,w,h),px=imgData.data,rgb=new Uint8Array(w*h*3);for(var i=0,j=0;i<px.length;i+=4,j+=3){rgb[j]=px[i];rgb[j+1]=px[i+1];rgb[j+2]=px[i+2]}var ss=w*h*3,iOff=8,nE=11,iSz=2+nE*12+4,dOff=iOff+iSz,bOff=dOff,pOff=bOff+6,fSz=pOff+ss,buf=new ArrayBuffer(fSz),v=new DataView(buf),u8=new Uint8Array(buf),o;v.setUint16(0,0x4949,false);v.setUint16(2,42,true);v.setUint32(4,iOff,true);o=iOff;v.setUint16(o,nE,true);o+=2;function wE(tag,tp,cnt,val){v.setUint16(o,tag,true);o+=2;v.setUint16(o,tp,true);o+=2;v.setUint32(o,cnt,true);o+=4;if(tp===3&&cnt===1){v.setUint16(o,val,true);o+=4}else{v.setUint32(o,val,true);o+=4}}wE(256,3,1,w);wE(257,3,1,h);wE(258,3,3,bOff);wE(259,3,1,1);wE(262,3,1,2);wE(273,4,1,pOff);wE(277,3,1,3);wE(278,4,1,h);wE(279,4,1,ss);wE(282,5,1,0);wE(283,5,1,0);v.setUint32(o,0,true);v.setUint16(bOff,8,true);v.setUint16(bOff+2,8,true);v.setUint16(bOff+4,8,true);u8.set(rgb,pOff);return new Blob([buf],{type:'image/tiff'})}
+      btn.onclick=async function(){btn.disabled=true;btn.style.opacity='0.6';showToast('\u6B63\u5728\u622A\u53D6\u6574\u4E2A\u9875\u9762\u2026',10000);try{btn.style.display='none';toast.style.display='none';var scale=window.devicePixelRatio||2;var canvas=await html2canvas(document.body,{scale:scale,useCORS:true,allowTaint:true,scrollY:-window.scrollY,windowWidth:document.documentElement.scrollWidth,windowHeight:document.documentElement.scrollHeight});btn.style.display='flex';var blob=encodeTIFF(canvas);if(window.showSaveFilePicker){try{var handle=await window.showSaveFilePicker({suggestedName:'RFQ\u7CFB\u7EDF\u622A\u56FE_'+new Date().toISOString().slice(0,19).replace(/[T:]/g,'-')+'.tif',types:[{description:'TIFF \u56FE\u50CF',accept:{'image/tiff':['.tif','.tiff']}}]});var wr=await handle.createWritable();await wr.write(blob);await wr.close();showToast('\u622A\u56FE\u5DF2\u4FDD\u5B58\u4E3A TIF ('+canvas.width+'\u00D7'+canvas.height+')')}catch(e){if(e.name!=='AbortError')throw e;showToast('\u5DF2\u53D6\u6D88\u4FDD\u5B58')}}else{var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='RFQ\u7CFB\u7EDF\u622A\u56FE_'+new Date().toISOString().slice(0,19).replace(/[T:]/g,'-')+'.tif';a.click();URL.revokeObjectURL(a.href);showToast('\u622A\u56FE\u5DF2\u4E0B\u8F7D\u4E3A TIF ('+canvas.width+'\u00D7'+canvas.height+')')}}catch(err){console.error(err);showToast('\u622A\u56FE\u5931\u8D25: '+err.message,5000);btn.style.display='flex'}finally{btn.disabled=false;btn.style.opacity='1'}};
+    })();
+    </script>
+</body>
+</html>
